@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K-Means Clustering GUI</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="page-body">
+
+    <div class="main-container">
+
+        <div class="card main-card">
+            <h1 class="card-title">K-Means Image Cluster</h1>
+
+            <form id="upload-form" class="upload-form">
+                
+                <div class="settings-grid" style="border-bottom: 1px solid #374151; padding-bottom: 1.5rem; margin-bottom: 1.5rem;">
+                    <div>
+                        <label for="dataset-select" class="form-label-sm">Select Dataset:</label>
+                        <select id="dataset-select" class="select-input">
+                            <option value="attfaces">Faces (Olivetti)</option>
+                            <option value="digits">Handwritten Digits</option>
+                            <option value="ship">Ship</option>
+                            <option value="orl">Orl</option>
+                            <option value="forest">Forest Covertype (CSV)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="image-file" class="form-label">Select Test Image:</label>
+                    <input type="file" id="image-file" class="file-input" accept="image/*, .pgm" />
+                </div>
+
+                <img id="image-preview" 
+                     alt="Image preview" 
+                     style="display: none; width: 100%; max-width: 200px; margin: 1rem auto; border-radius: 0.375rem;">
+
+                <div class="settings-grid">
+                    
+                    <div>
+                        <label for="algorithm-select" class="form-label-sm">K-Means Variant:</label>
+                        <select id="algorithm-select" class="select-input">
+                            <option value="var1">Var 1 (Random Clusters)</option>
+                            <option value="var2">Var 2 (Random Points)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="k-select" class="form-label-sm">K Value (Clusters):</label>
+                        <select id="k-select" class="select-input">
+                            <option value="2">K = 2</option>
+                            <option value="3" selected>K = 3</option>
+                            <option value="5">K = 5</option>
+                            <option value="8">K = 8</option>
+                            <option value="10">K = 10</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-button" id="processButton">
+                    Run Clustering
+                </button>
+            </form>
+
+            <div id="results-section" class="results-section hidden">
+                <h2 class="results-title">Cluster Results:</h2>
+                
+                <div class="results-wrapper">
+                    <div class="result-item">
+                        <p class="form-label-sm">Your Image</p>
+                        <img id="result-image" class="result-img" alt="Input">
+                    </div>
+
+                    <div id="centroid-container" class="result-item">
+                        <p class="form-label-sm">Cluster Centroid</p>
+                        <img id="centroid-image" class="result-img" alt="Centroid">
+                    </div>
+                </div>
+
+                <div id="loader" class="hidden">
+                    <div class="spinner"></div>
+                </div>
+                <pre id="results-output" class="results-output">Awaiting processing...</pre>
+            </div>
+        </div>
+
+        <div class="card stats-card">
+            <h1 class="card-title">Performance Benchmark</h1>
+            <div class="statistics-container">
+                <div class="stats-button-group">
+                    <button id="run-stats-button" class="submit-button stats-button">Compare Variants</button>
+                    <button id="clear-stats-button" class="submit-button stats-button-clear">Clear</button>
+                </div>
+                <div id="stats-loader" class="hidden">
+                    <div class="spinner"></div>
+                    <p style="text-align: center; color: #9ca3af;">Running K-Means Benchmarks...</p>
+                </div>
+                <div id="statistics-section" class="hidden">
+                    <div class="chart-container">
+                        <h3 class="chart-title">Execution Time (ms)</h3>
+                        <canvas id="time-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="toast" class="hidden" style="position: fixed; bottom: 20px; right: 20px; background: #059669; color: white; padding: 1rem; border-radius: 0.5rem;">
+        Dataset loaded successfully!
+    </div>
+    <script src="app.js" defer></script>
+</body>
+</html>
