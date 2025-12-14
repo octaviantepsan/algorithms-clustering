@@ -5,6 +5,7 @@ import numpy as np
 import random
 import os
 import pandas as pd
+import matplotlib.pyplot as plt
 from numpy import linalg as la
 from PIL import Image
 from flask import Flask, request, jsonify
@@ -18,11 +19,32 @@ CORS(app)
 STATE = {
     "data": None,          # The training dataset (N, Features)
     "shape": (64, 64),     # Original image shape
-    "centroids": None,     # Current K-Means centroids
+    "ghosts": None,     # Current K-Means ghosts
     "labels": None,        # Current cluster labels
     "k_current": 0,        # To track if we need to re-train
     "algo_current": ""     # To track if algorithm changed
 }
+
+save_folder = "assets/dots"
+if not os.path.exists(save_folder): os.makedirs(save_folder)
+
+# Generate 50 images with a dot in the top-left (Cluster 1)
+for i in range(50):
+    img = np.zeros((64, 64))
+    # Random pos in top-left corner
+    r, c = np.random.randint(5, 25, 2)
+    img[r, c] = 1.0 # White dot
+    plt.imsave(f"{save_folder}/dot_tl_{i}.png", img, cmap='gray')
+
+# Generate 50 images with a dot in the bottom-right (Cluster 2)
+for i in range(50):
+    img = np.zeros((64, 64))
+    # Random pos in bottom-right corner
+    r, c = np.random.randint(40, 60, 2)
+    img[r, c] = 1.0
+    plt.imsave(f"{save_folder}/dot_br_{i}.png", img, cmap='gray')
+
+print("✅ 'Dots' dataset created in assets/dots")
 
 # --- YOUR ALGORITHMS ---
 
@@ -36,7 +58,7 @@ def k_means_first_var(data, k):
     c_old = np.zeros([k, n]) + 9999
     c = np.zeros([k, n])
     
-    # Initialize centroids to avoid empty cluster errors on first run
+    # Initialize ghosts
     for j in range(k):
         points = data[clusters == j]
         if len(points) > 0:
@@ -47,7 +69,7 @@ def k_means_first_var(data, k):
     while (not np.allclose(c, c_old, atol=1e-4)):
         c_old = c.copy()
         
-        # 1. Update Centroids (M-Step)
+        # 1. Update ghosts (M-Step)
         for j in range(k):
             points_in_cluster = data[clusters == j]
             if len(points_in_cluster) > 0:
@@ -56,7 +78,6 @@ def k_means_first_var(data, k):
                 c[j] = data[np.random.randint(m)]
         
         # 2. Update Clusters (E-Step)
-        # Vectorized distance for speed: dist[i,j] = norm(data[i] - c[j])
         distances = np.zeros([m, k])
         for j in range(k):
             distances[:, j] = la.norm(data - c[j], axis=1)
@@ -72,7 +93,6 @@ def k_means_second_var(data, k):
     c = data[random_idx[:k], :].copy()
     
     c_old = np.zeros([k, n]) + 9999
-    
     clusters = np.zeros(m)
     
     while (not np.allclose(c, c_old, atol=1e-4)):
@@ -84,7 +104,7 @@ def k_means_second_var(data, k):
             distances[:, j] = la.norm(data - c[j], axis=1)    
         clusters = np.argmin(distances, axis=1)
         
-        # 2. Update Centroids
+        # 2. Update ghosts
         for j in range(k):
             points_in_cluster = data[clusters == j]
             if len(points_in_cluster) > 0:
@@ -118,7 +138,7 @@ def load_dataset():
     
     print(f"Loading {name}...")
     try:
-        # --- Built-in ---
+        # --- Built-in Datasets ---
         if name == 'digits':
             data = load_digits()
             STATE['data'] = data.data
@@ -131,96 +151,60 @@ def load_dataset():
             STATE['shape'] = (64, 64)
             STATE['name'] = 'attfaces'
 
-        # --- Custom Logic (Handles Images AND nested CSVs) ---
+        # --- Custom Folders (Generic Logic) ---
         else:
             backend_dir = os.path.dirname(os.path.abspath(__file__))
             base_path = os.path.join(backend_dir, '..', 'assets', name)
             
-            # Detect if user pointed to a CSV directly or a Folder containing a CSV
-            target_csv = None
-            
-            # Check 1: Is it 'assets/forest.csv'?
-            if os.path.exists(base_path + ".csv"):
-                target_csv = base_path + ".csv"
-            
-            # Check 2: Is it 'assets/forest/' folder containing a CSV?
-            elif os.path.isdir(base_path):
-                files_in_dir = os.listdir(base_path)
-                csvs = [f for f in files_in_dir if f.lower().endswith('.csv')]
-                if len(csvs) > 0:
-                    target_csv = os.path.join(base_path, csvs[0]) # Pick the first CSV found
-
-            # --- BRANCH A: Load CSV Data ---
-            if target_csv:
-                print(f"Reading CSV: {target_csv}")
-                # Limit to 5000 rows for speed (Covertype is HUGE)
-                df = pd.read_csv(target_csv)
-                
-                # Sampling if too big
-                if len(df) > 5000:
-                    print("Dataset too large, sampling 5000 rows...")
-                    df = df.sample(n=5000, random_state=42)
-
-                # Remove labels/targets
-                cols_to_drop = [c for c in df.columns if 'label' in c.lower() or 'target' in c.lower() or 'class' in c.lower()]
-                if cols_to_drop:
-                    df = df.drop(columns=cols_to_drop)
-                
-                # Convert to Matrix
-                data_matrix = df.values.astype(float)
-                
-                # Normalize columns to 0-1 range (Critical for K-Means on tabular data)
-                # (axis=0 means normalize per column/feature)
-                min_val = data_matrix.min(axis=0)
-                max_val = data_matrix.max(axis=0)
-                # Avoid division by zero
-                data_matrix = (data_matrix - min_val) / (max_val - min_val + 1e-8)
-                
-                STATE['data'] = data_matrix
-                
-                # Auto-Detect Shape for Visualization
-                n_features = data_matrix.shape[1]
-                side = int(np.sqrt(n_features))
-                if side * side == n_features:
-                    STATE['shape'] = (side, side)
-                else:
-                    # Forest Covertype has 54 columns -> Not square -> Render as Barcode
-                    STATE['shape'] = (1, n_features)
-                    
-                STATE['name'] = name
-
-            # --- BRANCH B: Load Images from Folder ---
-            elif os.path.isdir(base_path):
-                print(f"Scanning folder for images: {base_path}")
+            # This works for 'trains', 'orl', 'gems', or ANY folder in assets
+            if os.path.isdir(base_path):
+                print(f"Scanning folder: {base_path}")
                 valid_exts = ('.jpg', '.jpeg', '.png', '.bmp', '.pgm') 
                 image_paths = []
+                
+                # Walk through folder
                 for root, dirs, files in os.walk(base_path):
                     for file in files:
                         if file.lower().endswith(valid_exts):
                             image_paths.append(os.path.join(root, file))
                 
-                if not image_paths: return jsonify({"error": "No images or CSV found"}), 400
+                if not image_paths: 
+                    return jsonify({"error": f"No images found in {name}"}), 400
 
+                # Standardize size for custom images
                 target_size = (100, 100)
                 image_list = []
 
                 for img_path in image_paths:
                     try:
-                        img = Image.open(img_path).convert('L')
+                        # 1. Open Image
+                        img = Image.open(img_path)
+                        
+                        # 2. Handle Transparency (If PNG)
+                        if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+                            # Create a white background
+                            bg = Image.new('RGB', img.size, (255, 255, 255))
+                            # Paste image on top (using alpha channel as mask)
+                            bg.paste(img, mask=img.split()[3] if img.mode == 'RGBA' else None)
+                            img = bg
+                        
+                        # 3. Convert to Grayscale & Resize
+                        img = img.convert('L')
                         img = img.resize((target_size[1], target_size[0]))
                         vec = np.array(img).flatten().astype(float) / 255.0
                         image_list.append(vec)
-                    except: pass
+                    except Exception as e: 
+                        print(f"Skipping {img_path}: {e}")
                 
                 STATE['data'] = np.array(image_list)
                 STATE['shape'] = target_size
                 STATE['name'] = name
             
             else:
-                return jsonify({"error": "Dataset path not found"}), 404
+                return jsonify({"error": f"Dataset folder '../assets/{name}' not found"}), 404
 
-        # Reset Training
-        STATE['centroids'] = None
+        # Reset Training when new data loads
+        STATE['ghosts'] = None
         STATE['labels'] = None
         STATE['k_current'] = 0
         
@@ -248,22 +232,20 @@ def process():
     algo = request.form.get('algorithm', 'var1')
     k = int(request.form.get('k', 3))
     
-    # 1. Train K-Means if params changed or not trained yet
-    if STATE['k_current'] != k or STATE['algo_current'] != algo or STATE['centroids'] is None:
+    # 1. Train K-Means if needed
+    if STATE['k_current'] != k or STATE['algo_current'] != algo or STATE['ghosts'] is None:
         print(f"Training K-Means ({algo}, k={k})...")
         
-        # Create a temp variable for labels
         new_labels = None
-        new_centroids = None
+        new_ghosts = None
 
         if algo == 'var1':
-            new_labels, new_centroids = k_means_first_var(STATE['data'], k)
+            new_labels, new_ghosts = k_means_first_var(STATE['data'], k)
         else:
-            new_labels, new_centroids = k_means_second_var(STATE['data'], k)
+            new_labels, new_ghosts = k_means_second_var(STATE['data'], k)
             
-        # Update Global State properly
-        STATE['centroids'] = new_centroids
-        STATE['labels'] = new_labels  # <--- THIS WAS MISSING
+        STATE['ghosts'] = new_ghosts
+        STATE['labels'] = new_labels
         STATE['k_current'] = k
         STATE['algo_current'] = algo
         
@@ -273,23 +255,21 @@ def process():
     vec = np.array(img).flatten().astype(float) / 255.0
     
     # 3. Find Nearest Cluster
-    dists = la.norm(STATE['centroids'] - vec, axis=1)
+    dists = la.norm(STATE['ghosts'] - vec, axis=1)
     cluster_id = np.argmin(dists)
     
-    # --- ADD THIS DEBUG PRINT ---
-    # Count how many items are in the chosen cluster
+    # Debug info
     points_in_cluster = np.sum(STATE['labels'] == cluster_id)
     print(f"⚠️ Selected Cluster #{cluster_id} contains {points_in_cluster} images.")
-    # ----------------------------
     
     # 4. Return Data
-    # centroid image = The centroid (average) of the cluster
-    centroid_b64 = array_to_b64(STATE['centroids'][cluster_id], STATE['shape'])
+    # FIX: Changed 'ghost_b64' to 'ghost_b64' to match your Frontend
+    ghost_b64 = array_to_b64(STATE['ghosts'][cluster_id], STATE['shape'])
     input_b64 = array_to_b64(vec, STATE['shape'])
     
     return jsonify({
         "image_b64": input_b64,
-        "centroid_b64": centroid_b64,
+        "ghost_b64": ghost_b64,  # <--- FIXED NAME
         "algorithm": f"K-Means ({algo})",
         "person_label": f"Cluster #{cluster_id}",
         "nearest_idx": int(cluster_id)
@@ -306,13 +286,11 @@ def stats():
     data = STATE['data']
     
     for k in k_vals:
-        # Test Var 1
         t0 = time.time()
         k_means_first_var(data, k)
         t1 = time.time()
         var1_res.append({"name": f"Var1 (K={k})", "accuracy": 0, "time_ms": (t1-t0)*1000})
         
-        # Test Var 2
         t0 = time.time()
         k_means_second_var(data, k)
         t1 = time.time()

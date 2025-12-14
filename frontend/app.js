@@ -88,9 +88,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const data = await response.json();
             
             if (response.ok) {
-                // Show Input and centroid (Centroid)
                 resultImage.src = "data:image/png;base64," + data.image_b64;
-                centroidImage.src = "data:image/png;base64," + data.centroid_b64;
+                centroidImage.src = "data:image/png;base64," + data.ghost_b64;
                 
                 const outputText = `Method: ${data.algorithm}
 Result: Assigned to ${data.person_label}
