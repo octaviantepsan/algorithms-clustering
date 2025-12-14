@@ -151,60 +151,45 @@ def load_dataset():
             STATE['shape'] = (64, 64)
             STATE['name'] = 'attfaces'
 
-        # --- Custom Folders (Generic Logic) ---
+        # --- Custom Folders (Generic) ---
         else:
             backend_dir = os.path.dirname(os.path.abspath(__file__))
             base_path = os.path.join(backend_dir, '..', 'assets', name)
             
-            # This works for 'trains', 'orl', 'gems', or ANY folder in assets
+            # This check finds 'dots', 'gems', 'trains', etc. automatically!
             if os.path.isdir(base_path):
                 print(f"Scanning folder: {base_path}")
                 valid_exts = ('.jpg', '.jpeg', '.png', '.bmp', '.pgm') 
                 image_paths = []
                 
-                # Walk through folder
                 for root, dirs, files in os.walk(base_path):
                     for file in files:
                         if file.lower().endswith(valid_exts):
                             image_paths.append(os.path.join(root, file))
                 
                 if not image_paths: 
-                    return jsonify({"error": f"No images found in {name}"}), 400
+                    return jsonify({"error": f"No images found in assets/{name}"}), 400
 
-                # Standardize size for custom images
-                target_size = (100, 100)
+                target_size = (100, 100) # Standardize size
                 image_list = []
 
                 for img_path in image_paths:
                     try:
-                        # 1. Open Image
-                        img = Image.open(img_path)
-                        
-                        # 2. Handle Transparency (If PNG)
-                        if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
-                            # Create a white background
-                            bg = Image.new('RGB', img.size, (255, 255, 255))
-                            # Paste image on top (using alpha channel as mask)
-                            bg.paste(img, mask=img.split()[3] if img.mode == 'RGBA' else None)
-                            img = bg
-                        
-                        # 3. Convert to Grayscale & Resize
-                        img = img.convert('L')
+                        img = Image.open(img_path).convert('L')
                         img = img.resize((target_size[1], target_size[0]))
                         vec = np.array(img).flatten().astype(float) / 255.0
                         image_list.append(vec)
-                    except Exception as e: 
-                        print(f"Skipping {img_path}: {e}")
+                    except: pass
                 
                 STATE['data'] = np.array(image_list)
                 STATE['shape'] = target_size
                 STATE['name'] = name
             
             else:
-                return jsonify({"error": f"Dataset folder '../assets/{name}' not found"}), 404
+                return jsonify({"error": f"Folder '../assets/{name}' not found"}), 404
 
-        # Reset Training when new data loads
-        STATE['ghosts'] = None
+        # Reset Training
+        STATE['centroids'] = None
         STATE['labels'] = None
         STATE['k_current'] = 0
         
