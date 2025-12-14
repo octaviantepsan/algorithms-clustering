@@ -24,60 +24,6 @@ STATE = {
     "algo_current": ""     # To track if algorithm changed
 }
 
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import os
-
-# 1. Setup
-source_csv = "assets/forest/covtype.csv"
-save_folder = "test_csv_samples"
-
-if not os.path.exists(save_folder):
-    os.makedirs(save_folder)
-
-print(f"Reading {source_csv}...")
-
-# 2. Read the Data
-# We only need a few rows
-df = pd.read_csv(source_csv, nrows=20) 
-
-# Drop label/target columns if they exist
-cols_to_drop = [c for c in df.columns if 'label' in c.lower() or 'target' in c.lower() or 'class' in c.lower()]
-if cols_to_drop:
-    df = df.drop(columns=cols_to_drop)
-
-# 3. Normalize (Crucial!)
-# The web app does this internally, so we must do it here too 
-# to make the "image" look right.
-data = df.values.astype(float)
-min_val = data.min(axis=0)
-max_val = data.max(axis=0)
-data = (data - min_val) / (max_val - min_val + 1e-8)
-
-# 4. Save as Images
-print(f"Saving 5 samples to '{save_folder}'...")
-
-for i in range(5):
-    # Get one row (one forest area)
-    row_vector = data[i]
-    
-    # Reshape: 1 pixel tall, N pixels wide (Barcode)
-    # or make it square-ish for visibility if you prefer
-    n_features = len(row_vector)
-    
-    # Let's repeat the rows so the image is bigger and easier to see
-    # We will make it 50 pixels tall, but the pattern is only 1 pixel wide vertical
-    img_display = np.tile(row_vector, (50, 1))
-    
-    filename = f"{save_folder}/forest_sample_{i}.png"
-    
-    # Save using grayscale colormap
-    plt.imsave(filename, img_display, cmap='gray')
-    print(f"  Saved: {filename}")
-
-print("\n✅ Done! Upload these files to your web app.")
-
 # --- YOUR ALGORITHMS ---
 
 def k_means_first_var(data, k):
