@@ -22,7 +22,7 @@
                         <select id="dataset-select" class="select-input">
                             <option value="attfaces">Faces (Olivetti)</option>
                             <option value="digits">Handwritten Digits</option>
-                            <option value="ship">Ship</option>
+                            <option value="trains">Ships</option>
                             <option value="orl">Orl</option>
                             <option value="gems">Gemstones</option>
                             <option value="dots">Dots</option>
@@ -76,7 +76,7 @@
                     </div>
 
                     <div id="centroid-container" class="result-item">
-                        <p class="form-label-sm">Cluster Centroid</p>
+                        <p class="form-label-sm">Cluster Centroid (Ghost)</p>
                         <img id="centroid-image" class="result-img" alt="Centroid">
                     </div>
                 </div>
@@ -88,28 +88,47 @@
             </div>
         </div>
 
-        <div class="card stats-card">
-            <h1 class="card-title">Performance Benchmark</h1>
+        <div class="card stats-card" style="min-width: 600px;">
+            <h1 class="card-title">Scientific Analysis (Metoda Cotului)</h1>
+            <p style="text-align: center; color: #9ca3af; font-size: 0.9em; margin-bottom: 20px;">
+                Compares Variant 1 vs Variant 2 across K=2 to K=10
+            </p>
+            
             <div class="statistics-container">
                 <div class="stats-button-group">
-                    <button id="run-stats-button" class="submit-button stats-button">Compare Variants</button>
+                    <button id="run-stats-button" class="submit-button stats-button">Run Scientific Analysis</button>
                     <button id="clear-stats-button" class="submit-button stats-button-clear">Clear</button>
                 </div>
+                
                 <div id="stats-loader" class="hidden">
                     <div class="spinner"></div>
-                    <p style="text-align: center; color: #9ca3af;">Running K-Means Benchmarks...</p>
+                    <p style="text-align: center; color: #9ca3af;">Running Analysis (this takes ~10 seconds)...</p>
                 </div>
+                
                 <div id="statistics-section" class="hidden">
-                    <div class="chart-container">
-                        <h3 class="chart-title">Execution Time (ms)</h3>
-                        <canvas id="time-chart"></canvas>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        
+                        <div class="chart-container" style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
+                            <h3 class="chart-title" style="font-size: 1rem; text-align: center;">1. Elbow Method (Inertia)</h3>
+                            <canvas id="chartInertia"></canvas>
+                        </div>
+
+                        <div class="chart-container" style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
+                            <h3 class="chart-title" style="font-size: 1rem; text-align: center;">2. Silhouette Score</h3>
+                            <canvas id="chartSilhouette"></canvas>
+                        </div>
+
+                        <div class="chart-container" style="grid-column: span 2; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
+                            <h3 class="chart-title" style="font-size: 1rem; text-align: center;">3. Execution Time (Seconds)</h3>
+                            <canvas id="chartTime"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     
-    <div id="toast" class="hidden" style="position: fixed; bottom: 20px; right: 20px; background: #059669; color: white; padding: 1rem; border-radius: 0.5rem;">
+    <div id="toast" class="hidden" style="position: fixed; bottom: 20px; right: 20px; background: #059669; color: white; padding: 1rem; border-radius: 0.5rem; z-index: 100;">
         Dataset loaded successfully!
     </div>
     <script src="app.js" defer></script>

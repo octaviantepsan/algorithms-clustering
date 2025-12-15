@@ -11,6 +11,7 @@ from PIL import Image
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from sklearn.datasets import fetch_olivetti_faces, load_digits
+from sklearn.metrics import silhouette_score
 
 app = Flask(__name__)
 CORS(app)
@@ -115,6 +116,23 @@ def k_means_second_var(data, k):
     return clusters, c
 
 # --- HELPERS ---
+def calculate_inertia(data, centroids, labels):
+    """
+    Calculates the Sum of Squared Errors (Inertia).
+    Formula: Sum of distance(point, assigned_centroid)^2
+    """
+    inertia = 0
+    # For each cluster
+    for k_idx, centroid in enumerate(centroids):
+        # Get all points belonging to this cluster
+        cluster_points = data[labels == k_idx]
+        if len(cluster_points) > 0:
+            # Calculate squared Euclidean distance for these points
+            diff = cluster_points - centroid
+            sq_dist = np.sum(diff**2)
+            inertia += sq_dist
+    return inertia
+
 def array_to_b64(arr, shape):
     try:
         arr = arr.reshape(shape)
@@ -262,26 +280,63 @@ def process():
 
 @app.route('/run_statistics', methods=['POST'])
 def stats():
-    if STATE['data'] is None: return jsonify({"error": "No data"}), 400
-    
-    var1_res = []
-    var2_res = []
-    k_vals = [2, 3, 5, 8]
+    if STATE['data'] is None: 
+        return jsonify({"error": "No dataset loaded. Please load a dataset first."}), 400
     
     data = STATE['data']
+    # Limit data for statistics to speed it up (optional, removes lag on huge datasets)
+    # if len(data) > 1000: data = data[:1000]
+
+    results_var1 = []
+    results_var2 = []
     
-    for k in k_vals:
+    # We test K from 2 to 10 (Elbow Method usually looks at this range)
+    k_range = range(2, 11) 
+    
+    print("Starting Statistics Loop...")
+
+    for k in k_range:
+        # --- ALGORITHM 1 (Random Clusters) ---
         t0 = time.time()
-        k_means_first_var(data, k)
+        labels1, centroids1 = k_means_first_var(data, k)
         t1 = time.time()
-        var1_res.append({"name": f"Var1 (K={k})", "accuracy": 0, "time_ms": (t1-t0)*1000})
         
+        inertia1 = calculate_inertia(data, centroids1, labels1)
+        # Silhouette requires at least 2 labels. If k=1 or all points in 1 cluster, it fails.
+        sil1 = -1 
+        if len(np.unique(labels1)) > 1:
+            sil1 = silhouette_score(data, labels1)
+            
+        results_var1.append({
+            "k": k,
+            "time": (t1 - t0),       # Seconds
+            "inertia": inertia1,     # For Elbow Method
+            "silhouette": sil1       # For Quality Check
+        })
+
+        # --- ALGORITHM 2 (Random Points) ---
         t0 = time.time()
-        k_means_second_var(data, k)
+        labels2, centroids2 = k_means_second_var(data, k)
         t1 = time.time()
-        var2_res.append({"name": f"Var2 (K={k})", "accuracy": 0, "time_ms": (t1-t0)*1000})
         
-    return jsonify({"classification": var1_res, "preprocessing": var2_res})
+        inertia2 = calculate_inertia(data, centroids2, labels2)
+        sil2 = -1
+        if len(np.unique(labels2)) > 1:
+            sil2 = silhouette_score(data, labels2)
+
+        results_var2.append({
+            "k": k,
+            "time": (t1 - t0),
+            "inertia": inertia2,
+            "silhouette": sil2
+        })
+        
+        print(f"Computed stats for K={k}")
+
+    return jsonify({
+        "var1": results_var1, 
+        "var2": results_var2
+    })
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)

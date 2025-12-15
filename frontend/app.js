@@ -20,23 +20,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const clearStatsButton = document.getElementById('clear-stats-button');
     const statsLoader = document.getElementById('stats-loader');
     const statsSection = document.getElementById('statistics-section');
-    const timeChartCanvas = document.getElementById('time-chart');
     
-    let timeChart = null;
+    // Chart Instances
+    let chartInertiaInstance = null;
+    let chartSilInstance = null;
+    let chartTimeInstance = null;
 
     // --- 2. Initialization ---
     imageInput.value = null;
 
     // --- 3. Dataset Reloading ---
-// --- 3. Dataset Reloading ---
     async function reloadDataset() {
         const dataset = datasetSelect.value;
         console.log(`Reloading dataset: ${dataset}`);
         
-        // LOCK THE BUTTONS
+        // LOCK THE UI
         processButton.disabled = true;
         processButton.textContent = "Loading Dataset...";
-        datasetSelect.disabled = true; // Prevent spamming change
+        datasetSelect.disabled = true;
+        runStatsButton.disabled = true;
         
         try {
             const response = await fetch('http://localhost:5000/load_dataset', {
@@ -44,22 +46,28 @@ document.addEventListener("DOMContentLoaded", () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ dataset: dataset })
             });
+            const data = await response.json();
+
             if (response.ok) {
+                // Show Toast
+                toast.textContent = `Loaded ${dataset} (${data.shape[0]}x${data.shape[1]})`;
                 toast.classList.remove('hidden');
                 setTimeout(() => toast.classList.add('hidden'), 3000);
             } else { 
-                alert("Failed to load dataset."); 
+                alert("Failed to load dataset: " + data.error); 
             }
         } catch (e) { 
             console.error(e); 
-            alert("Error switching dataset."); 
+            alert("Error connecting to backend."); 
         } finally {
-            // UNLOCK THE BUTTONS
+            // UNLOCK THE UI
             processButton.disabled = false;
             processButton.textContent = "Run Clustering";
             datasetSelect.disabled = false;
+            runStatsButton.disabled = false;
         }
     }
+    
     datasetSelect.addEventListener('change', reloadDataset);
     // Load default on startup
     reloadDataset();
@@ -89,7 +97,13 @@ document.addEventListener("DOMContentLoaded", () => {
             
             if (response.ok) {
                 resultImage.src = "data:image/png;base64," + data.image_b64;
-                centroidImage.src = "data:image/png;base64," + data.ghost_b64;
+                
+                // FIX: Check for 'ghost_b64' or 'centroid_b64' just in case
+                if(data.ghost_b64) {
+                    centroidImage.src = "data:image/png;base64," + data.ghost_b64;
+                } else if (data.centroid_b64) {
+                    centroidImage.src = "data:image/png;base64," + data.centroid_b64;
+                }
                 
                 const outputText = `Method: ${data.algorithm}
 Result: Assigned to ${data.person_label}
@@ -138,56 +152,109 @@ Internal Index: ${data.nearest_idx}`;
         }
     }
 
-    // --- 6. Statistics Logic ---
+    // --- 6. Statistics Logic (UPDATED FOR 3 CHARTS) ---
     runStatsButton.addEventListener('click', async () => { 
         statsLoader.classList.remove('hidden');
         statsSection.classList.add('hidden');
+        runStatsButton.disabled = true;
         
         try {
             const response = await fetch('http://localhost:5000/run_statistics', { method: 'POST' });
             const data = await response.json(); 
+            
             if (response.ok) {
-                displayCharts(data);
+                if(data.error) {
+                    alert(data.error);
+                } else {
+                    displayScientificCharts(data);
+                }
+            } else {
+                alert("Server error running statistics");
             }
         } catch (error) {
             console.error(error);
+            alert("Failed to connect to backend for statistics.");
         } finally {
             statsLoader.classList.add('hidden');
             statsSection.classList.remove('hidden');
+            runStatsButton.disabled = false;
         }
     });
 
-    function displayCharts(data) {
-        if (timeChart) timeChart.destroy();
+    function displayScientificCharts(data) {
+        // Prepare Data
+        const labels = data.var1.map(item => `K=${item.k}`);
         
-        const combined = [...data.classification, ...data.preprocessing];
-        const labels = combined.map(d => d.name);
-        const times = combined.map(d => d.time_ms);
+        // Extract Metrics
+        const inertiaV1 = data.var1.map(i => i.inertia);
+        const inertiaV2 = data.var2.map(i => i.inertia);
+
+        const silV1 = data.var1.map(i => i.silhouette);
+        const silV2 = data.var2.map(i => i.silhouette);
+
+        const timeV1 = data.var1.map(i => i.time);
+        const timeV2 = data.var2.map(i => i.time);
+
+        // Render 3 Charts
+        chartInertiaInstance = renderChart('chartInertia', chartInertiaInstance, labels, inertiaV1, inertiaV2, 'Inertia (Lower is Better)');
+        chartSilInstance = renderChart('chartSilhouette', chartSilInstance, labels, silV1, silV2, 'Silhouette (Higher is Better)');
+        chartTimeInstance = renderChart('chartTime', chartTimeInstance, labels, timeV1, timeV2, 'Execution Time (Seconds)');
+    }
+
+    // Generic Chart Renderer
+    function renderChart(canvasId, chartInstance, labels, data1, data2, title) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
         
-        timeChart = new Chart(timeChartCanvas, {
-            type: 'bar',
+        if (chartInstance) chartInstance.destroy();
+
+        return new Chart(ctx, {
+            type: 'line',
             data: {
                 labels: labels,
-                datasets: [{
-                    label: 'Execution Time (ms)',
-                    data: times,
-                    backgroundColor: 'rgba(255, 99, 132, 0.6)',
-                    borderColor: 'rgba(255, 99, 132, 1)',
-                    borderWidth: 1
-                }]
+                datasets: [
+                    {
+                        label: 'Var 1 (Random Clusters)',
+                        data: data1,
+                        borderColor: '#ef4444', // Red
+                        backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Var 2 (Random Points)',
+                        data: data2,
+                        borderColor: '#3b82f6', // Blue
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        tension: 0.1
+                    }
+                ]
             },
             options: {
-                scales: {
-                    y: { beginAtZero: true, grid: { color: '#374151' } },
-                    x: { grid: { color: '#374151' } }
+                responsive: true,
+                plugins: {
+                    title: { display: false, text: title },
+                    legend: { labels: { color: '#d1d5db' } },
+                    tooltip: { mode: 'index', intersect: false }
                 },
-                plugins: { legend: { labels: { color: '#d1d5db' } } }
+                scales: {
+                    y: { 
+                        beginAtZero: false, 
+                        grid: { color: '#374151' },
+                        ticks: { color: '#9ca3af' }
+                    },
+                    x: { 
+                        grid: { color: '#374151' },
+                        ticks: { color: '#9ca3af' }
+                    }
+                },
+                interaction: { mode: 'nearest', axis: 'x', intersect: false }
             }
         });
     }
 
     clearStatsButton.addEventListener('click', () => {
-        if (timeChart) timeChart.destroy();
+        if (chartInertiaInstance) chartInertiaInstance.destroy();
+        if (chartSilInstance) chartSilInstance.destroy();
+        if (chartTimeInstance) chartTimeInstance.destroy();
         statsSection.classList.add('hidden');
     });
 });
