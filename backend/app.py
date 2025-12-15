@@ -6,12 +6,14 @@ import random
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+import shutil
 from numpy import linalg as la
 from PIL import Image
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from sklearn.datasets import fetch_olivetti_faces, load_digits
 from sklearn.metrics import silhouette_score
+from PIL import Image, ImageDraw
 
 app = Flask(__name__)
 CORS(app)
@@ -26,37 +28,45 @@ STATE = {
     "algo_current": ""     # To track if algorithm changed
 }
 
+# 1. Clean old data to prevent mixing
 save_folder = "assets/dots"
-if not os.path.exists(save_folder): os.makedirs(save_folder)
+if os.path.exists(save_folder):
+    shutil.rmtree(save_folder)
+os.makedirs(save_folder)
 
-print("Generating Blobs...")
+print("Generating Clean Blobs...")
 
-# 1. Top-Left Cluster (Generate 50)
+# --- CLUSTER 1: TOP-LEFT ---
+# Tight Group: Center is (15,15), Jitter is only +/- 2 pixels
 for i in range(50):
-    img = np.zeros((64, 64))
+    # Create pure black 64x64 image (Mode 'L' = 8-bit Grayscale)
+    img = Image.new('L', (64, 64), color=0)
+    draw = ImageDraw.Draw(img)
     
-    # Pick a random center
-    r, c = np.random.randint(10, 25, 2)
+    # Random position VERY close to 15,15
+    r = np.random.randint(13, 18) 
+    c = np.random.randint(13, 18)
     
-    # --- THE FIX: Make it a 5x5 Square (Blob) ---
-    # This ensures that a dot at 10,10 overlaps with a dot at 11,11
-    img[r:r+5, c:c+5] = 1.0 
+    # Draw a 10x10 White Square (255)
+    # The large size + small jitter guarantees overlap -> High Silhouette
+    draw.rectangle([c, r, c+10, r+10], fill=255)
     
-    plt.imsave(f"{save_folder}/dot_tl_{i}.png", img, cmap='gray')
+    img.save(f"{save_folder}/dot_tl_{i}.png")
 
-# 2. Bottom-Right Cluster (Generate 50)
+# --- CLUSTER 2: BOTTOM-RIGHT ---
+# Tight Group: Center is (45,45), Jitter is only +/- 2 pixels
 for i in range(50):
-    img = np.zeros((64, 64))
+    img = Image.new('L', (64, 64), color=0)
+    draw = ImageDraw.Draw(img)
     
-    # Pick a random center
-    r, c = np.random.randint(40, 55, 2)
+    r = np.random.randint(43, 48)
+    c = np.random.randint(43, 48)
     
-    # --- THE FIX: Make it a 5x5 Square ---
-    img[r:r+5, c:c+5] = 1.0 
+    draw.rectangle([c, r, c+10, r+10], fill=255)
     
-    plt.imsave(f"{save_folder}/dot_br_{i}.png", img, cmap='gray')
+    img.save(f"{save_folder}/dot_br_{i}.png")
 
-print("✅ 'Dots' dataset updated with 5x5 blobs!")
+print("✅ OPTIMIZED dataset created in assets/dots")
 
 # --- YOUR ALGORITHMS ---
 
