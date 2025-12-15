@@ -29,23 +29,34 @@ STATE = {
 save_folder = "assets/dots"
 if not os.path.exists(save_folder): os.makedirs(save_folder)
 
-# Generate 50 images with a dot in the top-left (Cluster 1)
+print("Generating Blobs...")
+
+# 1. Top-Left Cluster (Generate 50)
 for i in range(50):
     img = np.zeros((64, 64))
-    # Random pos in top-left corner
-    r, c = np.random.randint(5, 25, 2)
-    img[r, c] = 1.0 # White dot
+    
+    # Pick a random center
+    r, c = np.random.randint(10, 25, 2)
+    
+    # --- THE FIX: Make it a 5x5 Square (Blob) ---
+    # This ensures that a dot at 10,10 overlaps with a dot at 11,11
+    img[r:r+5, c:c+5] = 1.0 
+    
     plt.imsave(f"{save_folder}/dot_tl_{i}.png", img, cmap='gray')
 
-# Generate 50 images with a dot in the bottom-right (Cluster 2)
+# 2. Bottom-Right Cluster (Generate 50)
 for i in range(50):
     img = np.zeros((64, 64))
-    # Random pos in bottom-right corner
-    r, c = np.random.randint(40, 60, 2)
-    img[r, c] = 1.0
+    
+    # Pick a random center
+    r, c = np.random.randint(40, 55, 2)
+    
+    # --- THE FIX: Make it a 5x5 Square ---
+    img[r:r+5, c:c+5] = 1.0 
+    
     plt.imsave(f"{save_folder}/dot_br_{i}.png", img, cmap='gray')
 
-print("✅ 'Dots' dataset created in assets/dots")
+print("✅ 'Dots' dataset updated with 5x5 blobs!")
 
 # --- YOUR ALGORITHMS ---
 
