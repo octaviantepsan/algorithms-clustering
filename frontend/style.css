@@ -240,6 +240,25 @@ body, html {
   margin: 20px auto;
 }
 
+.number-input {
+    width: 80px; /* Make it small and compact */
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 1rem;
+    background-color: white;
+    background-image: none !important; /* Force remove any dropdown arrow */
+
+    appearance: auto;;
+    -webkit-appearance: auto; /* Keep the default increment buttons */
+    -moz-appearance: auto;
+}
+
+/* Optional: Align the text in the center */
+.number-input {
+    text-align: center;
+}
+
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }

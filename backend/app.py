@@ -154,61 +154,72 @@ def load_dataset():
     
     print(f"Loading {name}...")
     try:
+        max_k = 0 # Variable to store the limit
+        
+        # --- Built-in Datasets ---
         if name == 'digits':
             data = load_digits()
             STATE['data'] = data.data
             STATE['shape'] = (8, 8)
             STATE['name'] = 'digits'
-            
+            max_k = 10 # Digits 0-9
+
         elif name == 'attfaces':
             data = fetch_olivetti_faces()
             STATE['data'] = data.data
             STATE['shape'] = (64, 64)
             STATE['name'] = 'attfaces'
+            max_k = 40 # 40 distinct people
 
+        # --- Custom Folders ---
         else:
             backend_dir = os.path.dirname(os.path.abspath(__file__))
             base_path = os.path.join(backend_dir, '..', 'assets', name)
             
             if os.path.isdir(base_path):
-                print(f"Scanning folder: {base_path}")
-                valid_exts = ('.jpg', '.jpeg', '.png', '.bmp', '.pgm') 
-                image_paths = []
+                # 1. Count Sub-folders (if arranged by person/class)
+                subfolders = [f.path for f in os.scandir(base_path) if f.is_dir()]
+                if len(subfolders) > 0:
+                    max_k = len(subfolders)
                 
+                # 2. Load Images
+                valid_exts = ('.jpg', '.jpeg', '.png', '.bmp', '.pgm') 
+                image_list = []
                 for root, dirs, files in os.walk(base_path):
                     for file in files:
                         if file.lower().endswith(valid_exts):
-                            image_paths.append(os.path.join(root, file))
+                            try:
+                                img_path = os.path.join(root, file)
+                                img = Image.open(img_path).convert('L')
+                                img = img.resize((64, 64)) # Force standard size
+                                vec = np.array(img).flatten().astype(float) / 255.0
+                                image_list.append(vec)
+                            except: pass
                 
-                if not image_paths: 
-                    return jsonify({"error": f"No images found in assets/{name}"}), 400
+                if not image_list:
+                    return jsonify({"error": "No images found"}), 400
 
-                target_size = (100, 100)
-                image_list = []
-
-                for img_path in image_paths:
-                    try:
-                        img = Image.open(img_path).convert('L')
-                        img = img.resize((target_size[1], target_size[0]))
-                        vec = np.array(img).flatten().astype(float) / 255.0
-                        image_list.append(vec)
-                    except: pass
-                
                 STATE['data'] = np.array(image_list)
-                STATE['shape'] = target_size
+                STATE['shape'] = (64, 64)
                 STATE['name'] = name
-            
+                
+                # If no folders (loose images), max_k is the number of images
+                if max_k == 0:
+                    max_k = len(image_list)
             else:
-                return jsonify({"error": f"Folder '../assets/{name}' not found"}), 404
+                return jsonify({"error": f"Folder not found"}), 404
 
+        # Reset Training
         STATE['centroids'] = None
         STATE['labels'] = None
-        STATE['k_current'] = 0
         
-        return jsonify({"msg": f"Loaded {name} successfully", "shape": STATE['shape']}), 200
-
+        return jsonify({
+            "msg": f"Loaded {name}", 
+            "shape": STATE['shape'], 
+            "max_k": max_k  # <--- Sending the limit to frontend
+        }), 200
+        
     except Exception as e:
-        print(f"Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/preview', methods=['POST'])
@@ -270,56 +281,50 @@ def process():
 @app.route('/run_statistics', methods=['POST'])
 def stats():
     if STATE['data'] is None: 
-        return jsonify({"error": "No dataset loaded. Please load a dataset first."}), 400
+        return jsonify({"error": "No dataset loaded."}), 400
+    
+    # 1. Get the User's Chosen K Limit
+    req = request.json
+    limit_k = int(req.get('max_k', 10)) # Default to 10 if missing
     
     data = STATE['data']
-
     results_var1 = []
     results_var2 = []
     
-    k_range = range(2, 11) 
+    # 2. Iterate from 1 up to the chosen Limit
+    print(f"Running stats from K=1 to K={limit_k}...")
     
-    print("Starting Statistics Loop...")
-
-    for k in k_range:
+    for k in range(1, limit_k + 1):
+        
+        # --- ALGO 1 ---
         t0 = time.time()
-        labels1, centroids1 = k_means_first_var(data, k)
+        # Handle k=1 edge case for custom algo if needed, or just let it run
+        labels1, centroids1 = k_means_first_var(data, k) 
         t1 = time.time()
         
         inertia1 = calculate_inertia(data, centroids1, labels1)
-        sil1 = -1 
-        if len(np.unique(labels1)) > 1:
+        
+        # Silhouette is impossible for K=1 (needs separation)
+        sil1 = 0 
+        if k > 1 and len(np.unique(labels1)) > 1:
             sil1 = silhouette_score(data, labels1)
             
-        results_var1.append({
-            "k": k,
-            "time": (t1 - t0),
-            "inertia": inertia1,
-            "silhouette": sil1
-        })
+        results_var1.append({ "k": k, "time": (t1 - t0), "inertia": inertia1, "silhouette": sil1 })
 
+        # --- ALGO 2 ---
         t0 = time.time()
         labels2, centroids2 = k_means_second_var(data, k)
         t1 = time.time()
         
         inertia2 = calculate_inertia(data, centroids2, labels2)
-        sil2 = -1
-        if len(np.unique(labels2)) > 1:
+        
+        sil2 = 0
+        if k > 1 and len(np.unique(labels2)) > 1:
             sil2 = silhouette_score(data, labels2)
 
-        results_var2.append({
-            "k": k,
-            "time": (t1 - t0),
-            "inertia": inertia2,
-            "silhouette": sil2
-        })
+        results_var2.append({ "k": k, "time": (t1 - t0), "inertia": inertia2, "silhouette": sil2 })
         
-        print(f"Computed stats for K={k}")
-
-    return jsonify({
-        "var1": results_var1, 
-        "var2": results_var2
-    })
+    return jsonify({ "var1": results_var1, "var2": results_var2 })
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)

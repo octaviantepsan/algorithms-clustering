@@ -27,42 +27,51 @@ document.addEventListener("DOMContentLoaded", () => {
 
     imageInput.value = null;
 
-    async function reloadDataset() {
-        const dataset = datasetSelect.value;
-        console.log(`Reloading dataset: ${dataset}`);
-        
-        processButton.disabled = true;
-        processButton.textContent = "Loading Dataset...";
-        datasetSelect.disabled = true;
-        runStatsButton.disabled = true;
-        
-        try {
-            const response = await fetch('http://localhost:5000/load_dataset', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ dataset: dataset })
-            });
-            const data = await response.json();
+    let currentMaxK = 10; // Default max K
 
-            if (response.ok) {
-                // Show Toast
-                toast.textContent = `Loaded ${dataset} (${data.shape[0]}x${data.shape[1]})`;
-                toast.classList.remove('hidden');
-                setTimeout(() => toast.classList.add('hidden'), 3000);
-            } else { 
-                alert("Failed to load dataset: " + data.error); 
+async function reloadDataset() {
+    const dataset = datasetSelect.value;
+    const kInput = document.getElementById('k-input');
+    const kMsg = document.getElementById('k-limit-msg');
+    
+    // Lock UI
+    processButton.disabled = true;
+    processButton.textContent = "Loading...";
+    
+    try {
+        const response = await fetch('http://localhost:5000/load_dataset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dataset: dataset })
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+            // 1. SAVE THE LIMIT
+            currentMaxK = data.max_k;
+            
+            // 2. UPDATE THE INPUT FIELD
+            kInput.max = currentMaxK;
+            kMsg.textContent = `Max allowed: ${currentMaxK} (Based on folders/images)`;
+            
+            // Reset value if it's currently too high
+            if (parseInt(kInput.value) > currentMaxK) {
+                kInput.value = currentMaxK;
             }
-        } catch (e) { 
-            console.error(e); 
-            alert("Error connecting to backend."); 
-        } finally {
-            // UNLOCK THE UI
-            processButton.disabled = false;
-            processButton.textContent = "Run Clustering";
-            datasetSelect.disabled = false;
-            runStatsButton.disabled = false;
+
+            toast.textContent = `Loaded ${dataset} (Max K=${currentMaxK})`;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        } else { 
+            alert("Error: " + data.error); 
         }
+    } catch (e) { 
+        console.error(e); 
+    } finally {
+        processButton.disabled = false;
+        processButton.textContent = "Run Clustering";
     }
+}
     
     datasetSelect.addEventListener('change', reloadDataset);
     reloadDataset();
@@ -80,7 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const formData = new FormData();
         formData.append('image', file);
         formData.append('algorithm', algorithmSelect.value);
-        formData.append('k', kSelect.value);
+        formData.append('k', document.getElementById('k-input').value);
 
         try {
             const response = await fetch('http://localhost:5000/process_image', { 
@@ -145,12 +154,31 @@ Internal Index: ${data.nearest_idx}`;
     }
 
     runStatsButton.addEventListener('click', async () => { 
+        // Get the user's chosen K
+        const userK = parseInt(document.getElementById('k-input').value);
+        
+        // Validate
+        if (userK > currentMaxK) {
+            alert(`Please choose a K value less than or equal to ${currentMaxK}`);
+            return;
+        }
+        if (userK > 20) {
+            const confirmHigh = confirm(`Running stats up to K=${userK} might be slow. Continue?`);
+            if (!confirmHigh) return;
+        }
+
         statsLoader.classList.remove('hidden');
         statsSection.classList.add('hidden');
         runStatsButton.disabled = true;
         
         try {
-            const response = await fetch('http://localhost:5000/run_statistics', { method: 'POST' });
+            // SEND THE LIMIT TO BACKEND
+            const response = await fetch('http://localhost:5000/run_statistics', { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ max_k: userK }) 
+            });
+            
             const data = await response.json(); 
             
             if (response.ok) {
@@ -159,12 +187,9 @@ Internal Index: ${data.nearest_idx}`;
                 } else {
                     displayScientificCharts(data);
                 }
-            } else {
-                alert("Server error running statistics");
             }
         } catch (error) {
             console.error(error);
-            alert("Failed to connect to backend for statistics.");
         } finally {
             statsLoader.classList.add('hidden');
             statsSection.classList.remove('hidden');
