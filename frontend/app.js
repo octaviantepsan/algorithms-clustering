@@ -1,6 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
     
-    // --- 1. Get Elements ---
     const uploadForm = document.getElementById('upload-form');
     const imageInput = document.getElementById('image-file');
     const imagePreview = document.getElementById('image-preview');
@@ -26,15 +25,12 @@ document.addEventListener("DOMContentLoaded", () => {
     let chartSilInstance = null;
     let chartTimeInstance = null;
 
-    // --- 2. Initialization ---
     imageInput.value = null;
 
-    // --- 3. Dataset Reloading ---
     async function reloadDataset() {
         const dataset = datasetSelect.value;
         console.log(`Reloading dataset: ${dataset}`);
         
-        // LOCK THE UI
         processButton.disabled = true;
         processButton.textContent = "Loading Dataset...";
         datasetSelect.disabled = true;
@@ -69,10 +65,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     datasetSelect.addEventListener('change', reloadDataset);
-    // Load default on startup
     reloadDataset();
 
-    // --- 4. Main Process Submission ---
     uploadForm.addEventListener('submit', async (event) => {
         event.preventDefault(); 
         const file = imageInput.files[0];
@@ -98,7 +92,6 @@ document.addEventListener("DOMContentLoaded", () => {
             if (response.ok) {
                 resultImage.src = "data:image/png;base64," + data.image_b64;
                 
-                // FIX: Check for 'ghost_b64' or 'centroid_b64' just in case
                 if(data.ghost_b64) {
                     centroidImage.src = "data:image/png;base64," + data.ghost_b64;
                 } else if (data.centroid_b64) {
@@ -122,7 +115,6 @@ Internal Index: ${data.nearest_idx}`;
         }
     });
 
-    // --- 5. Image Preview ---
     imageInput.addEventListener('change', async () => {
         const file = imageInput.files[0];
         if (!file) { imagePreview.style.display = 'none'; return; }
@@ -152,7 +144,6 @@ Internal Index: ${data.nearest_idx}`;
         }
     }
 
-    // --- 6. Statistics Logic (UPDATED FOR 3 CHARTS) ---
     runStatsButton.addEventListener('click', async () => { 
         statsLoader.classList.remove('hidden');
         statsSection.classList.add('hidden');
@@ -182,10 +173,8 @@ Internal Index: ${data.nearest_idx}`;
     });
 
     function displayScientificCharts(data) {
-        // Prepare Data
         const labels = data.var1.map(item => `K=${item.k}`);
         
-        // Extract Metrics
         const inertiaV1 = data.var1.map(i => i.inertia);
         const inertiaV2 = data.var2.map(i => i.inertia);
 
@@ -195,13 +184,11 @@ Internal Index: ${data.nearest_idx}`;
         const timeV1 = data.var1.map(i => i.time);
         const timeV2 = data.var2.map(i => i.time);
 
-        // Render 3 Charts
         chartInertiaInstance = renderChart('chartInertia', chartInertiaInstance, labels, inertiaV1, inertiaV2, 'Inertia (Lower is Better)');
         chartSilInstance = renderChart('chartSilhouette', chartSilInstance, labels, silV1, silV2, 'Silhouette (Higher is Better)');
         chartTimeInstance = renderChart('chartTime', chartTimeInstance, labels, timeV1, timeV2, 'Execution Time (Seconds)');
     }
 
-    // Generic Chart Renderer
     function renderChart(canvasId, chartInstance, labels, data1, data2, title) {
         const ctx = document.getElementById(canvasId).getContext('2d');
         
@@ -215,14 +202,14 @@ Internal Index: ${data.nearest_idx}`;
                     {
                         label: 'Var 1 (Random Clusters)',
                         data: data1,
-                        borderColor: '#ef4444', // Red
+                        borderColor: '#ef4444',
                         backgroundColor: 'rgba(239, 68, 68, 0.2)',
                         tension: 0.1
                     },
                     {
                         label: 'Var 2 (Random Points)',
                         data: data2,
-                        borderColor: '#3b82f6', // Blue
+                        borderColor: '#3b82f6',
                         backgroundColor: 'rgba(59, 130, 246, 0.2)',
                         tension: 0.1
                     }

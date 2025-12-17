@@ -18,17 +18,15 @@ from PIL import Image, ImageDraw
 app = Flask(__name__)
 CORS(app)
 
-# --- GLOBAL STATE ---
 STATE = {
-    "data": None,          # The training dataset (N, Features)
-    "shape": (64, 64),     # Original image shape
-    "ghosts": None,     # Current K-Means ghosts
-    "labels": None,        # Current cluster labels
-    "k_current": 0,        # To track if we need to re-train
-    "algo_current": ""     # To track if algorithm changed
+    "data": None,          
+    "shape": (64, 64),     
+    "ghosts": None,     
+    "labels": None,        
+    "k_current": 0,        
+    "algo_current": ""     
 }
 
-# 1. Clean old data to prevent mixing
 save_folder = "assets/dots"
 if os.path.exists(save_folder):
     shutil.rmtree(save_folder)
@@ -36,25 +34,17 @@ os.makedirs(save_folder)
 
 print("Generating Clean Blobs...")
 
-# --- CLUSTER 1: TOP-LEFT ---
-# Tight Group: Center is (15,15), Jitter is only +/- 2 pixels
 for i in range(50):
-    # Create pure black 64x64 image (Mode 'L' = 8-bit Grayscale)
     img = Image.new('L', (64, 64), color=0)
     draw = ImageDraw.Draw(img)
     
-    # Random position VERY close to 15,15
     r = np.random.randint(13, 18) 
     c = np.random.randint(13, 18)
     
-    # Draw a 10x10 White Square (255)
-    # The large size + small jitter guarantees overlap -> High Silhouette
     draw.rectangle([c, r, c+10, r+10], fill=255)
     
     img.save(f"{save_folder}/dot_tl_{i}.png")
 
-# --- CLUSTER 2: BOTTOM-RIGHT ---
-# Tight Group: Center is (45,45), Jitter is only +/- 2 pixels
 for i in range(50):
     img = Image.new('L', (64, 64), color=0)
     draw = ImageDraw.Draw(img)
@@ -66,9 +56,8 @@ for i in range(50):
     
     img.save(f"{save_folder}/dot_br_{i}.png")
 
-print("✅ OPTIMIZED dataset created in assets/dots")
+print("dataset created in assets/dots")
 
-# --- YOUR ALGORITHMS ---
 
 def k_means_first_var(data, k):
     """ Variant 1: Random Clusters Initialization """
@@ -80,7 +69,6 @@ def k_means_first_var(data, k):
     c_old = np.zeros([k, n]) + 9999
     c = np.zeros([k, n])
     
-    # Initialize ghosts
     for j in range(k):
         points = data[clusters == j]
         if len(points) > 0:
@@ -91,7 +79,6 @@ def k_means_first_var(data, k):
     while (not np.allclose(c, c_old, atol=1e-4)):
         c_old = c.copy()
         
-        # 1. Update ghosts (M-Step)
         for j in range(k):
             points_in_cluster = data[clusters == j]
             if len(points_in_cluster) > 0:
@@ -99,7 +86,6 @@ def k_means_first_var(data, k):
             else:
                 c[j] = data[np.random.randint(m)]
         
-        # 2. Update Clusters (E-Step)
         distances = np.zeros([m, k])
         for j in range(k):
             distances[:, j] = la.norm(data - c[j], axis=1)
@@ -120,13 +106,11 @@ def k_means_second_var(data, k):
     while (not np.allclose(c, c_old, atol=1e-4)):
         c_old = c.copy()
         
-        # 1. Update Clusters
         distances = np.zeros([m, k])
         for j in range(k):
             distances[:, j] = la.norm(data - c[j], axis=1)    
         clusters = np.argmin(distances, axis=1)
         
-        # 2. Update ghosts
         for j in range(k):
             points_in_cluster = data[clusters == j]
             if len(points_in_cluster) > 0:
@@ -136,19 +120,15 @@ def k_means_second_var(data, k):
                 
     return clusters, c
 
-# --- HELPERS ---
 def calculate_inertia(data, centroids, labels):
     """
     Calculates the Sum of Squared Errors (Inertia).
     Formula: Sum of distance(point, assigned_centroid)^2
     """
     inertia = 0
-    # For each cluster
     for k_idx, centroid in enumerate(centroids):
-        # Get all points belonging to this cluster
         cluster_points = data[labels == k_idx]
         if len(cluster_points) > 0:
-            # Calculate squared Euclidean distance for these points
             diff = cluster_points - centroid
             sq_dist = np.sum(diff**2)
             inertia += sq_dist
@@ -157,7 +137,6 @@ def calculate_inertia(data, centroids, labels):
 def array_to_b64(arr, shape):
     try:
         arr = arr.reshape(shape)
-        # Normalize to 0-255
         arr = (arr - arr.min()) / (arr.max() - arr.min() + 1e-8) * 255
         img = Image.fromarray(arr.astype(np.uint8)).convert('L')
         buff = io.BytesIO()
@@ -167,8 +146,6 @@ def array_to_b64(arr, shape):
         print(e)
         return ""
 
-# --- ROUTES ---
-
 @app.route('/load_dataset', methods=['POST'])
 def load_dataset():
     req = request.json
@@ -177,7 +154,6 @@ def load_dataset():
     
     print(f"Loading {name}...")
     try:
-        # --- Built-in Datasets ---
         if name == 'digits':
             data = load_digits()
             STATE['data'] = data.data
@@ -190,12 +166,10 @@ def load_dataset():
             STATE['shape'] = (64, 64)
             STATE['name'] = 'attfaces'
 
-        # --- Custom Folders (Generic) ---
         else:
             backend_dir = os.path.dirname(os.path.abspath(__file__))
             base_path = os.path.join(backend_dir, '..', 'assets', name)
             
-            # This check finds 'dots', 'gems', 'trains', etc. automatically!
             if os.path.isdir(base_path):
                 print(f"Scanning folder: {base_path}")
                 valid_exts = ('.jpg', '.jpeg', '.png', '.bmp', '.pgm') 
@@ -209,7 +183,7 @@ def load_dataset():
                 if not image_paths: 
                     return jsonify({"error": f"No images found in assets/{name}"}), 400
 
-                target_size = (100, 100) # Standardize size
+                target_size = (100, 100)
                 image_list = []
 
                 for img_path in image_paths:
@@ -227,7 +201,6 @@ def load_dataset():
             else:
                 return jsonify({"error": f"Folder '../assets/{name}' not found"}), 404
 
-        # Reset Training
         STATE['centroids'] = None
         STATE['labels'] = None
         STATE['k_current'] = 0
@@ -256,7 +229,7 @@ def process():
     algo = request.form.get('algorithm', 'var1')
     k = int(request.form.get('k', 3))
     
-    # 1. Train K-Means if needed
+
     if STATE['k_current'] != k or STATE['algo_current'] != algo or STATE['ghosts'] is None:
         print(f"Training K-Means ({algo}, k={k})...")
         
@@ -273,27 +246,22 @@ def process():
         STATE['k_current'] = k
         STATE['algo_current'] = algo
         
-    # 2. Process Input Image
     img = Image.open(file).convert('L')
     img = img.resize((STATE['shape'][1], STATE['shape'][0]))
     vec = np.array(img).flatten().astype(float) / 255.0
     
-    # 3. Find Nearest Cluster
     dists = la.norm(STATE['ghosts'] - vec, axis=1)
     cluster_id = np.argmin(dists)
     
-    # Debug info
     points_in_cluster = np.sum(STATE['labels'] == cluster_id)
-    print(f"⚠️ Selected Cluster #{cluster_id} contains {points_in_cluster} images.")
+    print(f"Selected Cluster #{cluster_id} contains {points_in_cluster} images.")
     
-    # 4. Return Data
-    # FIX: Changed 'ghost_b64' to 'ghost_b64' to match your Frontend
     ghost_b64 = array_to_b64(STATE['ghosts'][cluster_id], STATE['shape'])
     input_b64 = array_to_b64(vec, STATE['shape'])
     
     return jsonify({
         "image_b64": input_b64,
-        "ghost_b64": ghost_b64,  # <--- FIXED NAME
+        "ghost_b64": ghost_b64,
         "algorithm": f"K-Means ({algo})",
         "person_label": f"Cluster #{cluster_id}",
         "nearest_idx": int(cluster_id)
@@ -305,37 +273,31 @@ def stats():
         return jsonify({"error": "No dataset loaded. Please load a dataset first."}), 400
     
     data = STATE['data']
-    # Limit data for statistics to speed it up (optional, removes lag on huge datasets)
-    # if len(data) > 1000: data = data[:1000]
 
     results_var1 = []
     results_var2 = []
     
-    # We test K from 2 to 10 (Elbow Method usually looks at this range)
     k_range = range(2, 11) 
     
     print("Starting Statistics Loop...")
 
     for k in k_range:
-        # --- ALGORITHM 1 (Random Clusters) ---
         t0 = time.time()
         labels1, centroids1 = k_means_first_var(data, k)
         t1 = time.time()
         
         inertia1 = calculate_inertia(data, centroids1, labels1)
-        # Silhouette requires at least 2 labels. If k=1 or all points in 1 cluster, it fails.
         sil1 = -1 
         if len(np.unique(labels1)) > 1:
             sil1 = silhouette_score(data, labels1)
             
         results_var1.append({
             "k": k,
-            "time": (t1 - t0),       # Seconds
-            "inertia": inertia1,     # For Elbow Method
-            "silhouette": sil1       # For Quality Check
+            "time": (t1 - t0),
+            "inertia": inertia1,
+            "silhouette": sil1
         })
 
-        # --- ALGORITHM 2 (Random Points) ---
         t0 = time.time()
         labels2, centroids2 = k_means_second_var(data, k)
         t1 = time.time()
