@@ -324,12 +324,12 @@ async function updateClusterMap() {
                         x: { 
                             grid: { color: '#374151' },
                             ticks: { color: '#9ca3af' },
-                            title: { display: true, text: 'Principal Component 1', color: '#6b7280' }
+                            title: { display: true, text: 'X-Axis', color: '#6b7280' }
                         },
                         y: { 
                             grid: { color: '#374151' },
                             ticks: { color: '#9ca3af' },
-                            title: { display: true, text: 'Principal Component 2', color: '#6b7280' }
+                            title: { display: true, text: 'Y-Axis', color: '#6b7280' }
                         }
                     }
                 }
