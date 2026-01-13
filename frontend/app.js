@@ -24,6 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let chartInertiaInstance = null;
     let chartSilInstance = null;
     let chartTimeInstance = null;
+    let chartMapInstance = null;
 
     imageInput.value = null;
 
@@ -108,11 +109,11 @@ async function reloadDataset() {
                 }
                 
                 const outputText = `Method: ${data.algorithm}
-Result: Assigned to ${data.person_label}
-Internal Index: ${data.nearest_idx}`;
-                
+Result: Assigned to ${data.person_label}`;                
                 resultsOutput.textContent = outputText;
                 resultsSection.classList.remove('hidden');
+
+                updateClusterMap();
             } else {
                 alert(data.error || 'Unknown error');
             }
@@ -262,6 +263,128 @@ Internal Index: ${data.nearest_idx}`;
             }
         });
     }
+
+    async function updateClusterMap() {
+    try {
+        const response = await fetch('http://localhost:5000/visualize_2d');
+        const data = await response.json();
+        
+        if (response.ok) {
+            const ctx = document.getElementById('clusterMapChart').getContext('2d');
+            
+            // Prepare datasets for Chart.js
+            const datasets = [];
+            const colors = [
+                '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', 
+                '#ec4899', '#6366f1', '#14b8a6', '#f97316', '#06b6d4'
+            ]; // Add more colors if needed or use a generator
+async function updateClusterMap() {
+    try {
+        const response = await fetch('http://localhost:5000/visualize_2d');
+        const data = await response.json();
+        
+        if (response.ok) {
+            const ctx = document.getElementById('clusterMapChart').getContext('2d');
+            
+            // Prepare datasets for Chart.js
+            const datasets = [];
+            const colors = [
+                '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', 
+                '#ec4899', '#6366f1', '#14b8a6', '#f97316', '#06b6d4'
+            ]; // Add more colors if needed or use a generator
+
+            Object.keys(data.clusters).forEach((label, index) => {
+                const color = colors[index % colors.length];
+                datasets.push({
+                    label: `Cluster ${label}`,
+                    data: data.clusters[label], // {x, y} structure matches Chart.js format
+                    backgroundColor: color,
+                    borderColor: color,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                });
+            });
+
+            if (chartMapInstance) chartMapInstance.destroy();
+
+            chartMapInstance = new Chart(ctx, {
+                type: 'scatter',
+                data: { datasets: datasets },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { labels: { color: '#d1d5db' } },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `Cluster ${ctx.dataset.label} (${ctx.raw.x.toFixed(2)}, ${ctx.raw.y.toFixed(2)})`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { 
+                            grid: { color: '#374151' },
+                            ticks: { color: '#9ca3af' },
+                            title: { display: true, text: 'Principal Component 1', color: '#6b7280' }
+                        },
+                        y: { 
+                            grid: { color: '#374151' },
+                            ticks: { color: '#9ca3af' },
+                            title: { display: true, text: 'Principal Component 2', color: '#6b7280' }
+                        }
+                    }
+                }
+            });
+        }
+    } catch (error) {
+        console.error("Error updating cluster map:", error);
+    }
+}
+            Object.keys(data.clusters).forEach((label, index) => {
+                const color = colors[index % colors.length];
+                datasets.push({
+                    label: `Cluster ${label}`,
+                    data: data.clusters[label], // {x, y} structure matches Chart.js format
+                    backgroundColor: color,
+                    borderColor: color,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                });
+            });
+
+            if (chartMapInstance) chartMapInstance.destroy();
+
+            chartMapInstance = new Chart(ctx, {
+                type: 'scatter',
+                data: { datasets: datasets },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { labels: { color: '#d1d5db' } },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `Cluster ${ctx.dataset.label} (${ctx.raw.x.toFixed(2)}, ${ctx.raw.y.toFixed(2)})`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { 
+                            grid: { color: '#374151' },
+                            ticks: { color: '#9ca3af' },
+                            title: { display: true, text: 'Principal Component 1', color: '#6b7280' }
+                        },
+                        y: { 
+                            grid: { color: '#374151' },
+                            ticks: { color: '#9ca3af' },
+                            title: { display: true, text: 'Principal Component 2', color: '#6b7280' }
+                        }
+                    }
+                }
+            });
+        }
+    } catch (error) {
+        console.error("Error updating cluster map:", error);
+    }
+}
 
     clearStatsButton.addEventListener('click', () => {
         if (chartInertiaInstance) chartInertiaInstance.destroy();

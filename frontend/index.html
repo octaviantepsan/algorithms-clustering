@@ -54,11 +54,11 @@
                         
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <input type="number" 
-                                id="k-input" 
-                                class="number-input" 
-                                value="3" 
-                                min="1" 
-                                max="100">
+                                   id="k-input" 
+                                   class="number-input" 
+                                   value="3" 
+                                   min="1" 
+                                   max="100">
                             
                             <span id="k-limit-msg" style="font-size: 0.8em; color: #666;">
                                 Max: ?
@@ -94,10 +94,20 @@
             </div>
         </div>
 
-        <div class="card stats-card" style="min-width: 600px;">
+        <div class="card stats-card">
+            <h1 class="card-title">Cluster Map (PCA Visualization)</h1>
+            <p style="text-align: center; color: #9ca3af; font-size: 0.9em; margin-bottom: 20px;">
+                2D projection of the high-dimensional image data (PC1 vs PC2).
+            </p>
+            <div class="chart-container" style="background: rgba(255,255,255,0.05);">
+                <canvas id="clusterMapChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card stats-card">
             <h1 class="card-title">Scientific Analysis (Metoda Cotului)</h1>
             <p style="text-align: center; color: #9ca3af; font-size: 0.9em; margin-bottom: 20px;">
-                Compares Variant 1 vs Variant 2 across K=2 to K=10
+                Compares Variant 1 vs Variant 2 across K=2 to K=Limit
             </p>
             
             <div class="statistics-container">
@@ -132,6 +142,7 @@
                 </div>
             </div>
         </div>
+
     </div>
     
     <div id="toast" class="hidden" style="position: fixed; bottom: 20px; right: 20px; background: #059669; color: white; padding: 1rem; border-radius: 0.5rem; z-index: 100;">

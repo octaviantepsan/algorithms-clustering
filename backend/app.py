@@ -13,6 +13,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from sklearn.datasets import fetch_olivetti_faces, load_digits
 from sklearn.metrics import silhouette_score
+from sklearn.decomposition import PCA
 from PIL import Image, ImageDraw
 
 app = Flask(__name__)
@@ -325,6 +326,38 @@ def stats():
         results_var2.append({ "k": k, "time": (t1 - t0), "inertia": inertia2, "silhouette": sil2 })
         
     return jsonify({ "var1": results_var1, "var2": results_var2 })
+
+@app.route('/visualize_2d', methods=['GET'])
+def visualize_2d():
+    global STATE
+    if STATE['data'] is None or STATE['labels'] is None:
+        return jsonify({"error": "No clustering data found. Run clustering first."}), 400
+    
+    try:
+        # 1. Reduce dimensions from 4096 (pixels) to 2 (X, Y)
+        pca = PCA(n_components=2)
+        reduced_data = pca.fit_transform(STATE['data'])
+        
+        # 2. Group points by their cluster label
+        clusters = {}
+        labels = STATE['labels']
+        
+        for i in range(len(labels)):
+            lbl = int(labels[i])
+            if lbl not in clusters:
+                clusters[lbl] = []
+            
+            # Python float conversion is needed for JSON serialization
+            clusters[lbl].append({ 
+                "x": float(reduced_data[i, 0]), 
+                "y": float(reduced_data[i, 1]) 
+            })
+        
+        return jsonify({ "clusters": clusters })
+        
+    except Exception as e:
+        print(e)
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
